@@ -88,13 +88,16 @@ jobs:
           find . -maxdepth 3 -type f \( -name "*.apk" -o -name "*.aab" -o -name "*.log" \) -print || true
 
           exit "$BUILD_EXIT_CODE"
-
+      - name: Clean Buildozer
+        run: |
+          rm -rf .buildozer
+          rm -rf bin
       - name: Show probable errors from log
         if: always()
         run: |
-          echo "===== POSSIBLE ERRORS FROM BUILDOZER LOG ====="
-          grep -i -n -E "error|failed|traceback|exception|command failed|build failed" buildozer-full.log | tail -n 200 || true
-          echo "==============================================="
+            echo "===== POSSIBLE ERRORS FROM BUILDOZER LOG ====="
+            grep -i -n -E "error|failed|traceback|exception|command failed|build failed" buildozer-full.log | tail -n 200 || true
+            echo "==============================================="
 
       - name: Upload full Buildozer log
         if: always()
