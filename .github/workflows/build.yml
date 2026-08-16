@@ -4,135 +4,94 @@ on:
   push:
     branches:
       - main
-
   workflow_dispatch:
 
 jobs:
-  build-apk:
-    name: Build Android APK
+  build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 120
 
     steps:
-      - name: Checkout source code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.10
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: "temurin"
-          java-version: "17"
-
-      - name: Install Linux dependencies
-        run: |
-          sudo apt-get update
-
-          sudo apt-get install -y \
-            autoconf \
-            automake \
-            build-essential \
-            ccache \
-            cmake \
-            git \
-            libbz2-dev \
-            libffi-dev \
-            libltdl-dev \
-            liblzma-dev \
-            libncurses5-dev \
-            libncursesw5-dev \
-            libreadline-dev \
-            libsqlite3-dev \
-            libssl-dev \
-            libtool \
-            libtinfo6 \
-            pkg-config \
-            unzip \
-            zip \
-            zlib1g-dev
-
-      - name: Install Buildozer
-        run: |
-          python -m pip install --upgrade pip setuptools wheel
-
-          python -m pip install \
-            buildozer==1.5.0 \
-            Cython==0.29.36 \
-            virtualenv
-
-          buildozer --version
-          python --version
-          java -version
-
-      - name: Check required files
+      - name: Show project structure
         run: |
           echo "Repository root:"
           ls -la
 
           echo ""
-          echo "Application source directory:"
+          echo "Application directory:"
           ls -la progekt_caculate
 
           echo ""
-          echo "Checking buildozer.spec:"
+          echo "Checking required files:"
           test -f buildozer.spec
-
-          echo ""
-          echo "Checking application main.py:"
           test -f progekt_caculate/main.py
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
 
-
-      - name: Clean old Android build cache
+      - name: Install system dependencies
         run: |
-          rm -rf .buildozer
-          rm -rf bin
-          rm -f buildozer-full.log
+          sudo apt-get update
+          sudo apt-get install -y \
+            git \
+            zip \
+            unzip \
+            openjdk-17-jdk \
+            autoconf \
+            libtool \
+            pkg-config \
+            zlib1g-dev \
+            libncurses5-dev \
+            libncursesw5-dev \
+            libtinfo6 \
+            cmake \
+            libffi-dev \
+            libssl-dev \
+            automake \
+            ccache \
+            libltdl-dev \
+            python3-pip
 
-      # continue-on-error важливий:
-      # навіть якщо збірка впаде, наступний крок завантажить повний лог.
-      - name: Build APK and save full log
-        id: apk_build
+      - name: Install Buildozer
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install buildozer==1.5.0 cython==0.29.36
+
+      - name: Build APK
+        id: build_apk
         continue-on-error: true
+        shell: bash
         run: |
-          set -o pipefail
+          set +e
+
+          echo "Starting Buildozer build..."
+          touch buildozer-full.log
 
           buildozer -v android debug 2>&1 | tee buildozer-full.log
 
           BUILD_EXIT_CODE=${PIPESTATUS[0]}
 
-          echo "build_exit_code=${BUILD_EXIT_CODE}" >> "$GITHUB_OUTPUT"
+          echo ""
+          echo "Buildozer exit code: $BUILD_EXIT_CODE"
+          echo "build_exit_code=$BUILD_EXIT_CODE" >> "$GITHUB_OUTPUT"
 
-          exit "${BUILD_EXIT_CODE}"
+          echo ""
+          echo "Generated files:"
+          find . -maxdepth 3 -type f \( -name "*.apk" -o -name "*.aab" -o -name "*.log" \) -print || true
 
-      - name: Show probable error lines
+          exit "$BUILD_EXIT_CODE"
+
+      - name: Show probable errors from log
         if: always()
         run: |
-          echo "========== POSSIBLE ERRORS =========="
+          echo "===== POSSIBLE ERRORS FROM BUILDOZER LOG ====="
+          grep -i -n -E "error|failed|traceback|exception|command failed|build failed" buildozer-full.log | tail -n 200 || true
+          echo "==============================================="
 
-          if [ -f buildozer-full.log ]; then
-            grep -n -i -E \
-              "error:|error |exception|traceback|failed|failure|command failed|compile failed|not found" \
-              buildozer-full.log \
-              | tail -n 100 || true
-          else
-            echo "buildozer-full.log was not created."
-          fi
-
-          echo "====================================="
-
-      - name: List APK files
-        if: always()
-        run: |
-          echo "========== APK FILES =========="
-          find bin -type f -name "*.apk" -print 2>/dev/null || true
-          echo "==============================="
-
-      # Цей artifact з'явиться і при помилці.
       - name: Upload full Buildozer log
         if: always()
         uses: actions/upload-artifact@v4
@@ -144,22 +103,18 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-      # APK завантажиться лише якщо він справді створений.
       - name: Upload APK
-        if: success()
+        if: ${{ always() && hashFiles('bin/*.apk') != '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: ElectroCalculator-APK
+          name: Android-APK
           path: bin/*.apk
-          if-no-files-found: error
-          retention-days: 30
+          if-no-files-found: warn
+          retention-days: 14
 
-      # Робить workflow червоним, якщо buildozer впав,
-      # але лише ПІСЛЯ завантаження повного логу.
-      - name: Mark build as failed when APK was not built
-        if: always()
+      - name: Fail workflow if APK build failed
+        if: ${{ always() && steps.build_apk.outcome == 'failure' }}
         run: |
-          if [ "${{ steps.apk_build.outputs.build_exit_code }}" != "0" ]; then
-            echo "APK build failed. Download artifact: Buildozer-Full-Log"
-            exit 1
-          fi
+          echo "APK build failed."
+          echo "Download the Buildozer-Full-Log artifact and inspect buildozer-full.log."
+          exit 1
