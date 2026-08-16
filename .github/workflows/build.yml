@@ -68,18 +68,23 @@ jobs:
           python --version
           java -version
 
-            - name: Check required files
+              - name: Check required files
         run: |
-          echo "Project files:"
+          echo "Repository root:"
           ls -la
+
+          echo ""
+          echo "Application source directory:"
+          ls -la progekt_caculate
 
           echo ""
           echo "Checking buildozer.spec:"
           test -f buildozer.spec
 
           echo ""
-          echo "Checking main.py:"
-          test -f main.py
+          echo "Checking application main.py:"
+          test -f progekt_caculate/main.py
+
 
 
       - name: Clean old Android build cache
