@@ -10,7 +10,8 @@ package.name = projectcalculator
 package.domain = org.staribognot
 
 # (str) Папка з вашим кодом
-source.dir = .
+source.dir = progekt_caculate
+
 
 # (str) Файли, які потрібно включати до APK
 source.include_exts = py,png,jpg,jpeg,kv,atlas,json,ttf,otf,txt
