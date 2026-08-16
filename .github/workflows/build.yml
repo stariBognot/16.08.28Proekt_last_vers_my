@@ -1,80 +1,116 @@
 name: Build Android APK
 
 on:
-  workflow_dispatch:
+  # Автоматична збірка після push у main
   push:
     branches:
       - main
-      - master
-  pull_request:
-    branches:
-      - main
-      - master
+
+  # Дозволяє вручну запустити збірку через GitHub Actions
+  workflow_dispatch:
 
 jobs:
   build-apk:
+    name: Build Android APK
     runs-on: ubuntu-22.04
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     steps:
-      - name: Checkout repository
+      # 1. Завантаження коду репозиторію
+      - name: Checkout source code
         uses: actions/checkout@v4
 
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Set up Python
+      # 2. Python для Buildozer
+      - name: Set up Python 3.10
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
+      # 3. Java 17 потрібна для Android Gradle Build
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      # 4. Встановлення системних пакетів Linux
       - name: Install system dependencies
         run: |
           sudo apt-get update
+
           sudo apt-get install -y \
-            git \
-            zip \
-            unzip \
-            openjdk-17-jdk \
             autoconf \
-            libtool \
-            pkg-config \
-            zlib1g-dev \
+            automake \
+            build-essential \
+            ccache \
+            cmake \
+            git \
+            libbz2-dev \
+            libffi-dev \
+            libltdl-dev \
+            liblzma-dev \
             libncurses5-dev \
             libncursesw5-dev \
-            libtinfo6 \
-            cmake \
-            libffi-dev \
-            libssl-dev \
-            libltdl-dev \
-            libsqlite3-dev \
-            libbz2-dev \
             libreadline-dev \
-            liblzma-dev
+            libsqlite3-dev \
+            libssl-dev \
+            libtool \
+            libtinfo6 \
+            pkg-config \
+            unzip \
+            zip \
+            zlib1g-dev
 
-      - name: Install Python dependencies
+      # 5. Встановлення Buildozer і сумісного Cython
+      - name: Install Buildozer
         run: |
           python -m pip install --upgrade pip setuptools wheel
+
           python -m pip install \
             buildozer==1.5.0 \
-            cython==0.29.36 \
+            Cython==0.29.36 \
             virtualenv
 
-      - name: Accept Android SDK licenses
+      # 6. Виведення версій у log, щоб простіше шукати проблеми
+      - name: Show build versions
         run: |
-          yes | sdkmanager --licenses || true
+          echo "Python:"
+          python --version
 
+          echo "Java:"
+          java -version
+
+          echo "Buildozer:"
+          buildozer --version
+
+          echo "Pip packages:"
+          python -m pip show buildozer
+          python -m pip show Cython
+
+      # 7. Повне очищення старих Android/Python збірок.
+      # Це критично: інакше може бути використаний старий Python 3.14 build cache.
+      - name: Clean old Buildozer files
+        run: |
+          rm -rf .buildozer
+          rm -rf bin
+
+      # 8. Збірка debug APK
       - name: Build debug APK
         run: |
-          buildozer android debug
+          buildozer -v android debug
 
+      # 9. Показати отримані APK-файли в логах
+      - name: List generated APK files
+        if: always()
+        run: |
+          echo "APK files:"
+          find bin -type f -name "*.apk" -print || true
+
+      # 10. Завантаження готового APK як GitHub Artifact
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ProjectCalculator-APK
+          name: ElectroCalculator-APK
           path: bin/*.apk
           if-no-files-found: error
           retention-days: 30
