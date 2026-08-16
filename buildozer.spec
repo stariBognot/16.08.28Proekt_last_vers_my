@@ -28,7 +28,7 @@ entrypoint = main.py
 
 # (list) Залежності Python.
 # Kivy 2.3.0 сумісний з Android.
-requirements = python3,kivy==2.3.0
+requirements = python3,kivy==2.3.1
 
 # (str) Орієнтація екрана
 orientation = portrait
