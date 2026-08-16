@@ -68,7 +68,7 @@ jobs:
           python --version
           java -version
 
-              - name: Check required files
+      - name: Check required files
         run: |
           echo "Repository root:"
           ls -la
