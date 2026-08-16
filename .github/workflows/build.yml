@@ -28,10 +28,11 @@ jobs:
           test -f buildozer.spec
           test -f progekt_caculate/main.py
 
-      - name: Set up Python
+            - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.11"
+
 
       - name: Install system dependencies
         run: |
