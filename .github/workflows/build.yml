@@ -1,127 +1,33 @@
-name: Build Android APK
+name: Build Kivy APK
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-      - name: Show project structure
-        run: |
-          echo "Repository root:"
-          ls -la
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
 
-          echo ""
-          echo "Application directory:"
-          ls -la progekt_caculate
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential libltdl-dev libffi-dev libssl-dev python3-dev zip unzip openjdk-17-jdk
+        pip install buildozer cython virtualenv
 
-          echo ""
-          echo "Checking required files:"
-          test -f buildozer.spec
-          test -f progekt_caculate/main.py
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            git \
-            zip \
-            unzip \
-            openjdk-17-jdk \
-            autoconf \
-            libtool \
-            pkg-config \
-            zlib1g-dev \
-            libncurses5-dev \
-            libncursesw5-dev \
-            libtinfo6 \
-            cmake \
-            libffi-dev \
-            libssl-dev \
-            automake \
-            ccache \
-            libltdl-dev \
-            python3-pip
-
-      - name: Install Buildozer and Cython
-        run: |
-          python -m pip install --upgrade pip setuptools wheel
-          python -m pip install \
-            buildozer==1.5.0 \
-            "Cython==3.0.11"
-
-
-      - name: Build APK
-        id: build_apk
-        continue-on-error: true
-        shell: bash
-        run: |
-          set +e
-
-          echo "Starting Buildozer build..."
-          touch buildozer-full.log
-
-          buildozer -v android debug 2>&1 | tee buildozer-full.log
-
-          BUILD_EXIT_CODE=${PIPESTATUS[0]}
-
-          echo ""
-          echo "Buildozer exit code: $BUILD_EXIT_CODE"
-          echo "build_exit_code=$BUILD_EXIT_CODE" >> "$GITHUB_OUTPUT"
-
-          echo ""
-          echo "Generated files:"
-          find . -maxdepth 3 -type f \( -name "*.apk" -o -name "*.aab" -o -name "*.log" \) -print || true
-
-          exit "$BUILD_EXIT_CODE"
-      - name: Clean Buildozer
-        run: |
-          rm -rf .buildozer
-          rm -rf bin
-      - name: Show probable errors from log
-        if: always()
-        run: |
-            echo "===== POSSIBLE ERRORS FROM BUILDOZER LOG ====="
-            grep -i -n -E "error|failed|traceback|exception|command failed|build failed" buildozer-full.log | tail -n 200 || true
-            echo "==============================================="
-
-      - name: Upload full Buildozer log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Buildozer-Full-Log
-          path: |
-            buildozer-full.log
-            .buildozer/**/*.log
-          if-no-files-found: warn
-          retention-days: 14
-
-      - name: Upload APK
-        if: ${{ always() && hashFiles('bin/*.apk') != '' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: Android-APK
-          path: bin/*.apk
-          if-no-files-found: warn
-          retention-days: 14
-
-      - name: Fail workflow if APK build failed
-        if: ${{ always() && steps.build_apk.outcome == 'failure' }}
-        run: |
-          echo "APK build failed."
-          echo "Download the Buildozer-Full-Log artifact and inspect buildozer-full.log."
-          exit 1
+    - name: Build APK with Buildozer
+      run: yes | buildozer android debug
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: Android-APK
+        path: bin/*.apk
